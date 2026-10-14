@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c2029">
+<title>PocketCode</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="home" class="screen">
+  <header><h1>PocketCode</h1><button id="newProject" class="on">+ New project</button></header>
+  <div id="projects"></div>
+</div>
+
+<div id="editor" class="screen hide">
+  <header>
+    <button id="back">←</button>
+    <button id="filesBtn">☰</button>
+    <div id="fname" class="title"></div>
+    <div class="views">
+      <button data-v="code">Code</button>
+      <button data-v="split" class="on">Split</button>
+      <button data-v="view">View</button>
+    </div>
+  </header>
+  <main>
+    <div id="editorWrap">
+      <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+      <div id="keys"></div>
+    </div>
+    <div id="previewWrap"><iframe id="frame" sandbox="allow-scripts allow-modals allow-forms"></iframe></div>
+  </main>
+  <aside id="drawer" class="hide">
+    <div class="dhead"><strong id="pname"></strong><button id="addFile" class="on">+ File</button><button id="closeDrawer">✕</button></div>
+    <div id="tree"></div>
+  </aside>
+</div>
+<div id="modal" class="hide"><div class="box"><div id="mt"></div><input id="mi" autocapitalize="off" autocomplete="off"><div class="mb"><button id="mc">Cancel</button><button id="mo" class="on">OK</button></div></div></div>
+<script src="app.js"></script>
+</body>
+</html>
