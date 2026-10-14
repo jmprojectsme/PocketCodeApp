@@ -219,9 +219,24 @@ document.querySelectorAll("[data-v]").forEach(function (b) {
   };
 });
 
+/* ---------- Install app button ---------- */
+var deferred;
+window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; });
+window.addEventListener("appinstalled", function () { deferred = null; $("installBtn").classList.add("hide"); });
+if (window.matchMedia("(display-mode: standalone)").matches) $("installBtn").classList.add("hide");
+$("installBtn").onclick = function () {
+  if (deferred) {
+    deferred.prompt();
+    deferred.userChoice.then(function () { deferred = null; });
+  } else {
+    dlg("Install isn't available from here right now. Open the Chrome menu (⋮) and tap Install app or Add to Home screen.", "", false, function () {});
+  }
+};
+
 load();
 renderHome();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js"); });
-  }
+      }
+               
