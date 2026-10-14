@@ -1,4 +1,4 @@
-var CACHE = "pocketcode-v5";
+var CACHE = "pocketcode-v6";
 var ASSETS = ["./", "index.html", "style.css", "app.js", "manifest.json", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }));
@@ -20,3 +20,4 @@ self.addEventListener("fetch", function (e) {
     }).catch(function () { return caches.match(e.request); })
   );
 });
+
