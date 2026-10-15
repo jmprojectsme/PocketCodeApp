@@ -95,6 +95,7 @@ function showFile() {
   $("fname").textContent = cur || "No file";
   $("code").value = cur ? proj.files[cur] : "";
   $("code").disabled = !cur;
+  paint();
 }
 
 function touch() { proj.updated = Date.now(); save(); }
@@ -104,6 +105,7 @@ $("code").addEventListener("input", function (e) {
   if (e.inputType === "insertText" && e.data && e.data.length === 1) afterType(e.data);
   else if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") afterEnter();
   proj.files[cur] = $("code").value; touch();
+  paint();
   clearTimeout(timer); timer = setTimeout(run, 400);
 });
 $("code").addEventListener("keydown", function (e) {
@@ -169,6 +171,56 @@ function afterEnter() {
   } else return;
   c.dispatchEvent(new Event("input"));
 }
+
+/* ---------- Syntax colors ---------- */
+function esc(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function sp(c, t) { return '<span class="' + c + '">' + esc(t) + "</span>"; }
+function hl(t, re, cl) {
+  var out = "", i = 0, m;
+  re.lastIndex = 0;
+  while ((m = re.exec(t))) {
+    if (!m[0]) { re.lastIndex++; continue; }
+    out += esc(t.slice(i, m.index)); i = re.lastIndex;
+    for (var g = 1; g < m.length; g++) if (m[g] !== undefined) { out += sp(cl[g - 1], m[g]); break; }
+  }
+  return out + esc(t.slice(i));
+}
+var JS_RE = /(\/\/.*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|\b(var|let|const|function|return|if|else|for|while|do|switch|case|break|continue|new|this|class|extends|import|export|from|try|catch|finally|throw|typeof|instanceof|in|of|async|await|true|false|null|undefined)\b|\b(\d+\.?\d*)\b|\b([A-Za-z_$][\w$]*)(?=\()/g;
+var CPP_RE = /(\/\/.*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|\b(void|int|long|short|float|double|char|bool|boolean|byte|unsigned|signed|const|static|if|else|for|while|do|switch|case|break|continue|return|class|struct|new|delete|true|false|nullptr|HIGH|LOW|INPUT|OUTPUT|String)\b|\b(\d+\.?\d*)\b|(^[ \t]*#\s*\w+)|\b([A-Za-z_]\w*)(?=\()/gm;
+var CSS_RE = /(\/\*[\s\S]*?\*\/)|("[^"]*"|'[^']*')|(#[0-9a-fA-F]{3,8}\b|-?\d*\.?\d+(?:px|em|rem|%|vh|vw|s|ms|deg)?\b)|(@[\w-]+)|([\w-]+)(?=\s*:)/g;
+function hlJs(t) { return hl(t, JS_RE, ["c", "s", "k", "n", "f"]); }
+function hlCpp(t) { return hl(t, CPP_RE, ["c", "s", "k", "n", "k", "f"]); }
+function hlCss(t) { return hl(t, CSS_RE, ["c", "s", "n", "k", "p"]); }
+function hlTag(s) {
+  var out = "", re = /^(<\/?)([\w-]+)|([\w:-]+)(=)("[^"]*"|'[^']*')|([\w:-]+)/g, i = 0, m;
+  while ((m = re.exec(s))) {
+    out += esc(s.slice(i, m.index)); i = re.lastIndex;
+    if (m[2]) out += esc(m[1]) + sp("t", m[2]);
+    else if (m[3]) out += sp("a", m[3]) + "=" + sp("s", m[5]);
+    else out += sp("a", m[6]);
+  }
+  return out + esc(s.slice(i));
+}
+function hlHtml(t) {
+  var out = "", i = 0, m, re = /(<!--[\s\S]*?-->)|(<(style|script)\b[^>]*>)([\s\S]*?)(<\/\3>)|(<\/?[a-zA-Z][^>]*>)|(<![^>]*>)/gi;
+  while ((m = re.exec(t))) {
+    out += esc(t.slice(i, m.index)); i = re.lastIndex;
+    if (m[1]) out += sp("c", m[1]);
+    else if (m[2]) out += hlTag(m[2]) + (m[3].toLowerCase() === "style" ? hlCss(m[4]) : hlJs(m[4])) + hlTag(m[5]);
+    else if (m[6]) out += hlTag(m[6]);
+    else out += sp("k", m[7]);
+  }
+  return out + esc(t.slice(i));
+}
+var LANG = { html: hlHtml, htm: hlHtml, css: hlCss, js: hlJs, mjs: hlJs, json: hlJs, ino: hlCpp, cpp: hlCpp, c: hlCpp, h: hlCpp };
+function paint() {
+  var t = $("code").value, fn = LANG[(cur || "").split(".").pop().toLowerCase()];
+  $("hl").innerHTML = (fn ? fn(t) : esc(t)) + "\n";
+  $("hl").scrollTop = $("code").scrollTop; $("hl").scrollLeft = $("code").scrollLeft;
+}
+$("code").addEventListener("scroll", function () {
+  $("hl").scrollTop = $("code").scrollTop; $("hl").scrollLeft = $("code").scrollLeft;
+});
 
 /* ---------- Preview: inline linked css/js by path ---------- */
 function norm(ref) {
@@ -300,4 +352,5 @@ renderHome();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js"); });
-}
+  }
+    
