@@ -99,8 +99,10 @@ function showFile() {
 
 function touch() { proj.updated = Date.now(); save(); }
 
-$("code").addEventListener("input", function () {
+$("code").addEventListener("input", function (e) {
   if (!cur) return;
+  if (e.inputType === "insertText" && e.data && e.data.length === 1) afterType(e.data);
+  else if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") afterEnter();
   proj.files[cur] = $("code").value; touch();
   clearTimeout(timer); timer = setTimeout(run, 400);
 });
@@ -119,6 +121,54 @@ $("back").onclick = function () {
   $("home").classList.remove("hide");
   renderHome();
 };
+
+/* ---------- Smart typing: auto-close + auto-indent ---------- */
+var PAIRS = { "(": ")", "{": "}", "[": "]", '"': '"', "'": "'" };
+var VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
+function isHtml() { return /\.html?$/i.test(cur || ""); }
+
+function afterType(ch) {
+  var c = $("code");
+  if (c.disabled) return;
+  var v = c.value, s = c.selectionStart, prev = v[s - 2] || "", next = v[s] || "", ed = false;
+  if (next === ch && ")}]\"'".indexOf(ch) >= 0) {
+    c.setRangeText("", s, s + 1, "start"); ed = true;
+  } else if (PAIRS[ch]) {
+    if (!((ch === '"' || ch === "'") && (/\w/.test(prev) || /\w/.test(next)))) {
+      c.setRangeText(PAIRS[ch], s, s, "start"); ed = true;
+    }
+  } else if (ch === ">" && isHtml()) {
+    var m = /<([a-zA-Z][\w-]*)(\s[^<>]*)?>$/.exec(v.slice(0, s));
+    if (m && !VOID.test(m[1]) && !/\/\s*>$/.test(m[0])) {
+      c.setRangeText("</" + m[1] + ">", s, s, "start"); ed = true;
+    }
+  }
+  if (ed) c.dispatchEvent(new Event("input"));
+}
+
+function afterEnter() {
+  var c = $("code");
+  if (c.disabled) return;
+  var v = c.value, s = c.selectionStart, before = v.slice(0, s - 1);
+  var line = before.slice(before.lastIndexOf("\n") + 1), ind = /^[ \t]*/.exec(line)[0];
+  var prev = before.slice(-1), next = v[s] || "", more = false, between = false;
+  if (prev && "{[(".indexOf(prev) >= 0) {
+    more = true; between = PAIRS[prev] === next;
+  } else if (isHtml() && prev === ">") {
+    var m = /<([a-zA-Z][\w-]*)(\s[^<>]*)?>$/.exec(before);
+    if (m && !VOID.test(m[1]) && !/\/\s*>$/.test(m[0])) {
+      more = true; between = v.slice(s).indexOf("</" + m[1]) === 0;
+    }
+  }
+  var add = ind + (more ? "  " : "");
+  if (between) {
+    c.setRangeText(add + "\n" + ind, s, s, "start");
+    c.selectionStart = c.selectionEnd = s + add.length;
+  } else if (add) {
+    c.setRangeText(add, s, s, "end");
+  } else return;
+  c.dispatchEvent(new Event("input"));
+}
 
 /* ---------- Preview: inline linked css/js by path ---------- */
 function norm(ref) {
@@ -205,7 +255,7 @@ $("addFile").onclick = function () {
   var b = document.createElement("button");
   b.textContent = k === "Tab" ? "⇥" : k;
   b.addEventListener("mousedown", function (ev) { ev.preventDefault(); });
-  b.onclick = function () { insert(k === "Tab" ? "  " : k); };
+  b.onclick = function () { if (k === "Tab") return insert("  "); insert(k); afterType(k); };
   $("keys").appendChild(b);
 });
 document.querySelectorAll("[data-v]").forEach(function (b) {
@@ -224,12 +274,24 @@ var deferred;
 window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; });
 window.addEventListener("appinstalled", function () { deferred = null; $("installBtn").classList.add("hide"); });
 if (window.matchMedia("(display-mode: standalone)").matches) $("installBtn").classList.add("hide");
+function diag(cb) {
+  var out = [];
+  out.push("Opened as installed app: " + window.matchMedia("(display-mode: standalone)").matches);
+  out.push("Install event from Chrome: " + (deferred ? "yes" : "no"));
+  var sw = navigator.serviceWorker;
+  out.push("Service worker: " + (sw ? (sw.controller ? "controlling" : "not controlling yet") : "unsupported"));
+  Promise.all(["manifest.json", "icon-192.png", "icon-512.png"].map(function (u) {
+    return fetch(u, { cache: "no-store" }).then(function (r) { return u + ": " + r.status; }).catch(function () { return u + ": failed"; });
+  })).then(function (r) { cb(out.concat(r).join("\n")); });
+}
 $("installBtn").onclick = function () {
   if (deferred) {
     deferred.prompt();
     deferred.userChoice.then(function () { deferred = null; });
   } else {
-    dlg("Install isn't available from here right now. Open the Chrome menu (⋮) and tap Install app or Add to Home screen.", "", false, function () {});
+    diag(function (t) {
+      dlg("Chrome did not offer the install.\n\n" + t + "\n\nSend me a screenshot of this. You can also try the menu (⋮) > Install app.", "", false, function () {});
+    });
   }
 };
 
@@ -238,5 +300,4 @@ renderHome();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js"); });
-      }
-               
+}
